@@ -29,10 +29,10 @@ void main(int argc, char *argv[])
 
 	FILE *inputFile = fopen(fileName, "r");
 	char *inputBuffer = NULL;
-
+	int fileSize = 0;
 	if(inputFile){
 		fseek(inputFile, 0, SEEK_END);
-		int fileSize = ftell(inputFile);
+		fileSize = ftell(inputFile);
 		rewind(inputFile);
 		inputBuffer= (char *) malloc(sizeof(char) *  (fileSize+1));
 		fread(inputBuffer, sizeof(char), fileSize,inputFile);
@@ -42,7 +42,15 @@ void main(int argc, char *argv[])
 	}
 
 	//Do the Encryption
+	// TODO:handle the error handler
+	gcry_cipher_hd_t cipherHandler;
+	errHandler = gcry_cipher_open(&cipherHandler, GCRY_CIPHER_AES128, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_CBC_CTS);
 
+	errHandler = gcry_cipher_setkey(cipherHandler, strKey, 32);
+	int initVector[4] = {5,8,4,4};
+	errHandler = gcry_cipher_setiv(cipherHandler, initVector, sizeof(initVector));
+	
+	errHandler = gcry_cipher_encrypt(cipherHandler, inputBuffer, fileSize, NULL,0);	
 	
 	//Check the flags for file destination
 
