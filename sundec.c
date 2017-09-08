@@ -3,9 +3,15 @@
 
 void main()
 {
-    printf("Hello World");
+	//read the argumets
+	//check password'	
+	//read file from disk
+	//read hash
+	//decrupt
 
+	
 
 }
+
 
 

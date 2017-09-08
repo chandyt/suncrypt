@@ -51,11 +51,21 @@ void main(int argc, char *argv[])
 	errHandler = gcry_cipher_setiv(cipherHandler, initVector, sizeof(initVector));
 	
 	errHandler = gcry_cipher_encrypt(cipherHandler, inputBuffer, fileSize, NULL,0);	
+
+	//do the hash function
 	
 	//Check the flags for file destination
 
 	// Write to File
+	strcat(fileName, ".uf");
+	FILE *outputFile = fopen(fileName,"w");// TODO: may be change to wx to fail on file exists
+
+	//TODO: handle file exists
+	fwrite(inputBuffer, sizeof(char), fileSize, outputFile);
+	fclose(outputFile);	
 	
+	
+
 	// Write to Port
 }
 
