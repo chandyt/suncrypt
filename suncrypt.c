@@ -52,8 +52,25 @@ void main(int argc, char *argv[])
 	
 	errHandler = gcry_cipher_encrypt(cipherHandler, inputBuffer, fileSize, NULL,0);	
 
-	//do the hash function
+	//do the hash function and add hash to encrypted text
+	gcry_md_hd_t hmacHandler;
 	
+
+	errHandler=gcry_md_open(&hmacHandler, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
+
+	errHandler=gcry_md_setkey(hmacHandler,strKey, 32);
+
+        gcry_md_write(hmacHandler, inputBuffer, fileSize);
+
+	int digestLength = gcry_md_get_algo_dlen(gcry_md_get_algo(hmacHandler)); 
+	printf("%d", digestLength); //TODO:Remove me
+    
+        char *hmacString = gcry_md_read(hmacHandler, GCRY_MD_SHA512);
+
+	 printf("%s", hmacString);	//TODO:Remove me
+
+	memcpy(inputBuffer, hmacString, digestLength);
+
 	//Check the flags for file destination
 
 	// Write to File
@@ -61,7 +78,7 @@ void main(int argc, char *argv[])
 	FILE *outputFile = fopen(fileName,"w");// TODO: may be change to wx to fail on file exists
 
 	//TODO: handle file exists
-	fwrite(inputBuffer, sizeof(char), fileSize, outputFile);
+	fwrite(inputBuffer, sizeof(char), fileSize+digestLength, outputFile);
 	fclose(outputFile);	
 	
 	
