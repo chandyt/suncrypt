@@ -22,7 +22,7 @@ void main(int argc, char *argv[])
 
 	int i=0;
 	for(i=0; i<32; i++){
-		printf("%02X " ,strKey[i]);
+		//printf("%02X " ,strKey[i]);
 	}
 
 	//read file contents
@@ -34,9 +34,10 @@ void main(int argc, char *argv[])
 		fseek(inputFile, 0, SEEK_END);
 		fileSize = ftell(inputFile);
 		rewind(inputFile);
-		inputBuffer= (char *) malloc(sizeof(char) *  (fileSize+1));
+		printf("File Size : %d\n", fileSize);
+		inputBuffer= (char *) malloc(sizeof(char) *  (fileSize));
 		fread(inputBuffer, sizeof(char), fileSize,inputFile);
-		printf("%s", inputBuffer);	//TODO:Remove me	
+		printf("Input : %s\n", inputBuffer);	//TODO:Remove me	
 		fclose(inputFile);
 		
 	}
@@ -52,6 +53,7 @@ void main(int argc, char *argv[])
 	
 	errHandler = gcry_cipher_encrypt(cipherHandler, inputBuffer, fileSize, NULL,0);	
 
+	printf("Encrypted: %s\n", inputBuffer);	//TODO:Remove me
 	//do the hash function and add hash to encrypted text
 	gcry_md_hd_t hmacHandler;
 	
@@ -59,26 +61,32 @@ void main(int argc, char *argv[])
 	errHandler=gcry_md_open(&hmacHandler, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
 
 	errHandler=gcry_md_setkey(hmacHandler,strKey, 32);
-
+	printf("Hash1: %s\n", inputBuffer);	//TODO:Remove me
         gcry_md_write(hmacHandler, inputBuffer, fileSize);
+	printf("Hash2: %s\n", inputBuffer);	//TODO:Remove me
+
+
 
 	int digestLength = gcry_md_get_algo_dlen(gcry_md_get_algo(hmacHandler)); 
-	printf("%d", digestLength); //TODO:Remove me
+	//digestLength=0;
+	//printf("%d", digestLength); //TODO:Remove me
     
         char *hmacString = gcry_md_read(hmacHandler, GCRY_MD_SHA512);
 
-	 printf("%s", hmacString);	//TODO:Remove me
-
-	memcpy(inputBuffer, hmacString, digestLength);
+	printf("HMAC: %s\n", hmacString);	//TODO:Remove me
 
 	//Check the flags for file destination
 
 	// Write to File
+	printf("Write to file: %s\n", inputBuffer);	//TODO:Remove me
+
 	strcat(fileName, ".uf");
 	FILE *outputFile = fopen(fileName,"w");// TODO: may be change to wx to fail on file exists
 
 	//TODO: handle file exists
-	fwrite(inputBuffer, sizeof(char), fileSize+digestLength, outputFile);
+	fwrite(inputBuffer, sizeof(char), fileSize, outputFile);
+	printf("Write to file: %s\n", hmacString);
+	fwrite(hmacString, sizeof(char), digestLength, outputFile);
 	fclose(outputFile);	
 	
 	
