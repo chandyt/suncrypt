@@ -1,97 +1,115 @@
 #include<stdio.h>
 #include<gcrypt.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#include<arpa/inet.h> 
+#include <unistd.h>
 
-void main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-	char strPassword[50];	// TODO: Change to char *
-	char *fileName;
+	char strPassword[50];	
+	char *inputFileName;
+	char *outputFileName;
 	char *strSalt = "NaCl";
 	char *strKey= (char *) malloc(32);
+	int isLocal = 0; 
+
+	if(argc <3){
+		printf("\nInvalid number of arguments: suncrypt <input file> [-d < IP-addr:port >][-l]\n");
+		exit(0);
+	}
+
+	inputFileName = argv[1];
 	
+	if(strcmp(argv[2], "-l")==0){
+		isLocal=1;
+		int newFileNameLength = strlen(inputFileName)+3;
+		outputFileName= malloc(sizeof(char) *  newFileNameLength+1); ;
+		strcpy(outputFileName, inputFileName);
+		outputFileName[newFileNameLength]='\0';
+		strcat(outputFileName, ".uf");
+		
+		FILE * isFileExist;
+		isFileExist = fopen(outputFileName, "r");
+		
+		if (isFileExist){
+			printf("\nERROR in Creating Output file: %s exists \n", outputFileName);
+			fclose(isFileExist);
+			return 33;
+		}
+	}
 
-	printf("Enter Password: ");
+
+	printf("\nPassword: ");
 	scanf("%s", strPassword);
-
-	fileName = argv[1];
-	printf(fileName); //TODO: Remove me
-
+	
 	//generate Key
-
 	int errHandler= gcry_kdf_derive(strPassword, strlen(strPassword), GCRY_KDF_PBKDF2, GCRY_MD_SHA512, strSalt, strlen(strSalt), 4096,32, strKey);
-
-
-	int i=0;
-	for(i=0; i<32; i++){
-		//printf("%02X " ,strKey[i]);
+	printf("\nKey: ");
+	for(int i=0; i<32; i++){
+		printf("%02X " ,strKey[i]);
 	}
 
 	//read file contents
-
-	FILE *inputFile = fopen(fileName, "r");
+	FILE *inputFile = fopen(inputFileName, "r");
 	char *inputBuffer = NULL;
 	int fileSize = 0;
 	if(inputFile){
 		fseek(inputFile, 0, SEEK_END);
 		fileSize = ftell(inputFile);
 		rewind(inputFile);
-		printf("File Size : %d\n", fileSize);
 		inputBuffer= (char *) malloc(sizeof(char) *  (fileSize));
 		fread(inputBuffer, sizeof(char), fileSize,inputFile);
-		printf("Input : %s\n", inputBuffer);	//TODO:Remove me	
 		fclose(inputFile);
-		
 	}
 
 	//Do the Encryption
 	// TODO:handle the error handler
 	gcry_cipher_hd_t cipherHandler;
 	errHandler = gcry_cipher_open(&cipherHandler, GCRY_CIPHER_AES128, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_CBC_CTS);
-
 	errHandler = gcry_cipher_setkey(cipherHandler, strKey, 32);
 	int initVector[4] = {5,8,4,4};
 	errHandler = gcry_cipher_setiv(cipherHandler, initVector, sizeof(initVector));
-	
 	errHandler = gcry_cipher_encrypt(cipherHandler, inputBuffer, fileSize, NULL,0);	
 
-	printf("Encrypted: %s\n", inputBuffer);	//TODO:Remove me
 	//do the hash function and add hash to encrypted text
 	gcry_md_hd_t hmacHandler;
-	
-
 	errHandler=gcry_md_open(&hmacHandler, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
-
 	errHandler=gcry_md_setkey(hmacHandler,strKey, 32);
-	printf("Hash1: %s\n", inputBuffer);	//TODO:Remove me
         gcry_md_write(hmacHandler, inputBuffer, fileSize);
-	printf("Hash2: %s\n", inputBuffer);	//TODO:Remove me
-
-
-
 	int digestLength = gcry_md_get_algo_dlen(gcry_md_get_algo(hmacHandler)); 
-	//digestLength=0;
-	//printf("%d", digestLength); //TODO:Remove me
-    
         char *hmacString = gcry_md_read(hmacHandler, GCRY_MD_SHA512);
 
-	printf("HMAC: %s\n", hmacString);	//TODO:Remove me
+	if(isLocal == 1){ 
+		// Write to File
+		FILE *outputFile = fopen(outputFileName,"w");
+		fwrite(inputBuffer, sizeof(char), fileSize, outputFile);
+		fwrite(hmacString, sizeof(char), digestLength, outputFile);
+		fclose(outputFile);
+		printf("\nSuccessfully encrypted %s to %s (%d bytes written).\n",  inputFileName, outputFileName, fileSize + digestLength);		
+	} else {
+		// Write to Port
+		if(argc <4){
+			printf("\nInvalid number of arguments: suncrypt <input file> -d < IP-addr:port >\n");
+			exit(0);
+		}
+		char * destination = argv[3];
+		char *destIP=strsep(&destination, ":");
+		unsigned int destPORT=atoi(strsep(&destination, ":")); 
+		struct sockaddr_in remoteSocket;
 
-	//Check the flags for file destination
+		int srcSocket = socket(AF_INET, SOCK_STREAM, 0);
+		remoteSocket.sin_family= AF_INET;
+		remoteSocket.sin_port= htons(destPORT);
+		remoteSocket.sin_addr.s_addr= inet_addr(destIP);
+		printf("\nTransmitting to %s",argv[3]);
 
-	// Write to File
-	printf("Write to file: %s\n", inputBuffer);	//TODO:Remove me
-
-	strcat(fileName, ".uf");
-	FILE *outputFile = fopen(fileName,"w");// TODO: may be change to wx to fail on file exists
-
-	//TODO: handle file exists
-	fwrite(inputBuffer, sizeof(char), fileSize, outputFile);
-	printf("Write to file: %s\n", hmacString);
-	fwrite(hmacString, sizeof(char), digestLength, outputFile);
-	fclose(outputFile);	
-	
-	
-
-	// Write to Port
+		int connectStatus = connect(srcSocket, (struct sockaddr *)  &remoteSocket, sizeof(remoteSocket));
+		int sendStatus = write(srcSocket, inputBuffer, fileSize);
+		sendStatus = write(srcSocket, hmacString, digestLength);
+		close(srcSocket);
+		printf("\nSuccessfully received\n");
+	}
 }
 
 
